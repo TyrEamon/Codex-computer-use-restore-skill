@@ -1,0 +1,4 @@
+interface:
+  display_name: "Restore Computer Use"
+  short_description: "Restore Codex Computer Use plugin registration on Windows"
+  default_prompt: "Restore Computer Use so Codex settings no longer shows the plugin as unavailable."
