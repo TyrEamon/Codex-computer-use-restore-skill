@@ -1,5 +1,7 @@
 param(
   [string]$CodexHome = $(if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }),
+  [Alias("Source")]
+  [string]$BundledMarketplace,
   [switch]$DryRun
 )
 
@@ -43,6 +45,17 @@ function Assert-UnderPath {
 }
 
 function Find-BundledMarketplace {
+  if ($BundledMarketplace) {
+    $candidate = [System.IO.Path]::GetFullPath($BundledMarketplace)
+    $marketplace = Join-Path $candidate ".agents\plugins\marketplace.json"
+    $computerUse = Join-Path $candidate "plugins\computer-use\.codex-plugin\plugin.json"
+    $chrome = Join-Path $candidate "plugins\chrome\.codex-plugin\plugin.json"
+    if ((Test-Path $marketplace) -and (Test-Path $computerUse) -and (Test-Path $chrome)) {
+      return $candidate
+    }
+    throw "The provided bundled marketplace is incomplete: $candidate"
+  }
+
   $candidates = @()
 
   $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
@@ -203,6 +216,23 @@ function Copy-TreeBytes {
   }
 }
 
+function Backup-CodexState {
+  $backupRoot = Join-Path $CodexHome "backups\plugin-repair-$(Get-Date -Format yyyyMMdd-HHmmss)"
+  if ($DryRun) {
+    Write-Step "Would back up config/state to: $backupRoot"
+    return
+  }
+
+  New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+  foreach ($fileName in @("config.toml", "codex-global-state.json")) {
+    $sourcePath = Join-Path $CodexHome $fileName
+    if (Test-Path -LiteralPath $sourcePath) {
+      Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $backupRoot $fileName) -Force
+    }
+  }
+  Write-Step "Backed up config/state: $backupRoot"
+}
+
 function Ensure-LatestJunction {
   param(
     [string]$Name,
@@ -217,7 +247,9 @@ function Ensure-LatestJunction {
 
   $pluginParent = Join-Path $CodexHome "plugins\cache\openai-bundled\$Name"
   $latestPath = Join-Path $pluginParent "latest"
-  New-Item -ItemType Directory -Force -Path $pluginParent | Out-Null
+  if (-not $DryRun) {
+    New-Item -ItemType Directory -Force -Path $pluginParent | Out-Null
+  }
   Assert-UnderPath -Path $latestPath -Root $CodexHome
 
   $existingManifest = Read-PluginManifest -PluginRoot $latestPath
@@ -251,7 +283,9 @@ function Ensure-LatestCopy {
   $pluginParent = Join-Path $CodexHome "plugins\cache\openai-bundled\$Name"
   $latestPath = Join-Path $pluginParent "latest"
   $requiredFiles = $RequiredRelativeFiles | ForEach-Object { Join-Path $latestPath $_ }
-  New-Item -ItemType Directory -Force -Path $pluginParent | Out-Null
+  if (-not $DryRun) {
+    New-Item -ItemType Directory -Force -Path $pluginParent | Out-Null
+  }
   Assert-UnderPath -Path $latestPath -Root $CodexHome
 
   $latestItem = if (Test-Path -LiteralPath $latestPath) { Get-Item -LiteralPath $latestPath -Force } else { $null }
@@ -405,6 +439,25 @@ function Repair-SkyRuntimeExports {
   }
 }
 
+function Show-PluginStatus {
+  $codexCliPath = Find-RuntimeFile -FileName "codex.exe"
+  if (-not $codexCliPath) {
+    Write-Step "Skipping plugin status verification; codex.exe was not found."
+    return
+  }
+
+  if ($DryRun) {
+    Write-Step "Would verify plugin status with: $codexCliPath plugin list"
+    return
+  }
+
+  Write-Step "Verifying plugin status."
+  & $codexCliPath plugin list | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    Write-Step "Plugin status verification failed with exit code $LASTEXITCODE."
+  }
+}
+
 function Enable-PluginInConfig {
   param(
     [string]$MarketplaceRoot,
@@ -461,6 +514,7 @@ $browserRoot = Join-Path $bundledRoot "plugins\browser"
 Write-Step "Codex home: $CodexHome"
 Write-Step "Bundled marketplace: $bundledRoot"
 
+Backup-CodexState
 Enable-PluginInConfig -MarketplaceRoot $bundledRoot -PluginNames @("computer-use", "chrome")
 Ensure-LatestJunction -Name "browser" -Source $browserRoot
 $computerUseLatestRoot = Ensure-LatestCopy -Name "computer-use" -Source $computerUseRoot
@@ -472,5 +526,6 @@ $chromeLatestRoot = Ensure-LatestCopy -Name "chrome" -Source $chromeRoot -Requir
 )
 Invoke-ChromeNativeHostInstall -ChromeRoot $chromeLatestRoot
 Repair-SkyRuntimeExports
+Show-PluginStatus
 
 Write-Step "Done. If the Chrome row still says disconnected, install or enable the Codex Chrome Extension in Chrome."

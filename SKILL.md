@@ -37,6 +37,18 @@ If `CODEX_HOME` is unset, use:
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1"
 ```
 
+For read-only diagnosis before applying changes, pass `-DryRun`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1" -DryRun
+```
+
+If Codex cannot find the bundled marketplace automatically, pass the exact `app\resources\plugins\openai-bundled` path with `-Source`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1" -Source "C:\Program Files\WindowsApps\OpenAI.Codex_<version>_x64__2p2nqsd0c76g0\app\resources\plugins\openai-bundled"
+```
+
 5. Restart Codex if the settings page does not refresh immediately.
 6. Verify with `codex plugin list`: `computer-use@openai-bundled` must show `installed, enabled` with version `latest`. If it still says `not installed`, run the install-cache repair script again; do not replace `computer-use/latest` with a junction.
 7. Re-test `@Computer` or open `codex://settings/computer-use`.
@@ -55,6 +67,8 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 - Rebuilds `computer-use/latest` and `chrome/latest` as real writable copies instead of junctions, because the plugin installer does not count the `computer-use` junction as installed.
 - Copies AppX "Application Protected" bundled files by reading and writing bytes, because normal `Copy-Item` can fail with "The specified file could not be encrypted."
 - Repairs the local `@oai/sky` runtime export for `computer_use_client_base.js` when Computer Use fails with `Package subpath ... is not defined by "exports"` after a Codex update.
+- Supports read-only `-DryRun` diagnosis and manual `-Source` override for custom Codex installs.
+- Backs up both `config.toml` and `codex-global-state.json` before applying deep repairs.
 - Reinstalls the Chrome native messaging host manifest and HKCU registry entry with the current Codex runtime paths.
 - Does not install the Chrome Web Store extension; if Chrome still says disconnected, ask the user to install or enable the Codex Chrome Extension in Chrome.
 
@@ -70,6 +84,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 
 - Do not edit random `false`/`true` fields or invent a `computer-use = true` switch.
 - Do not write inside `C:\Program Files\WindowsApps`, change its permissions, take ownership, or modify ACLs; use it only as the read-only source of the bundled plugin.
+- Prefer byte-copying protected app package files into a user-writable mirror/cache rather than installing directly from `WindowsApps`.
 - If the script cannot find `plugins\openai-bundled\plugins\computer-use`, update/reinstall Codex before trying manual config edits.
 - If `@Computer` cannot operate apps after registration is fixed, investigate runtime, Windows foreground visibility, app approvals, or provider/session state separately.
 - If the Chrome extension itself is absent, do not fake Chrome profile state. Open the Codex Chrome Extension Web Store page only after the user agrees.

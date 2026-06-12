@@ -49,6 +49,19 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1"
 ```
 
+如果你想先看计划、不修改任何配置：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1" -DryRun
+```
+
+如果自动找不到 Codex bundled 插件源，可以手动指定 `openai-bundled` 目录：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore-computer-use\scripts\repair-bundled-plugin-installs.ps1" `
+  -Source "C:\Program Files\WindowsApps\OpenAI.Codex_<version>_x64__2p2nqsd0c76g0\app\resources\plugins\openai-bundled"
+```
+
 ## 它会修什么
 
 - 刷新 `$env:USERPROFILE\.codex\config.toml` 里的 `[marketplaces.openai-bundled]`
@@ -59,6 +72,27 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 - 处理 WindowsApps AppX `Application Protected` / 加密文件复制失败问题
 - 重装 Chrome native messaging host manifest
 - 修复 `@oai/sky` 的 `package.json exports` 漏项导致的 Computer Use runtime 报错
+- 支持 `-DryRun` 只读诊断
+- 支持 `-Source` 手动指定 bundled 插件源
+- 修复前备份 `config.toml` 和 `codex-global-state.json`
+
+## 和其他修复方案的关系
+
+这个 skill 吸收了社区里“把 WindowsApps 里的 bundled 插件源复制到用户目录，再注册/安装”的经验，但没有完全照搬。
+
+保留并增强的点：
+
+- 使用 byte-copy 读取受保护 AppX 文件，避免普通复制遇到 `os error 6000` 或加密属性失败
+- 支持手动 `-Source` 指定 `app\resources\plugins\openai-bundled`
+- 支持 `-DryRun` 先诊断
+- 备份用户 Codex 配置和全局状态
+
+额外覆盖的坑：
+
+- `computer-use/latest` 是 junction 时 Codex 可能仍判定为未安装，所以这里会构建真实目录副本
+- Chrome 插件需要真实可写副本，因为 native host 安装脚本会写入插件目录
+- 更新后 Chrome native host 可能还指向旧 runtime，这里会重新安装 HKCU native messaging manifest
+- Computer Use 注册成功但运行时报 `Package subpath ... computer_use_client_base.js is not defined by "exports"` 时，这里会修复本地 `@oai/sky` runtime metadata
 
 ## 为什么不直接改 WindowsApps 权限？
 
