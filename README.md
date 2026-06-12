@@ -60,6 +60,19 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 - 重装 Chrome native messaging host manifest
 - 修复 `@oai/sky` 的 `package.json exports` 漏项导致的 Computer Use runtime 报错
 
+## 为什么不直接改 WindowsApps 权限？
+
+不要改。
+
+`C:\Program Files\WindowsApps` 是 Windows 受保护的应用包目录。Codex 的 Microsoft Store / AppX 安装内容也在这里，文件可能带有 AppX 保护、加密属性或应用包完整性约束。强行接管权限、改 ACL、删除加密属性，短期看也许能复制文件，但容易引入额外问题：
+
+- 破坏应用包完整性，导致 Codex 更新、修复或卸载异常
+- 让 WindowsApps 权限状态变脏，后续 Store/App Installer 更新更难判断
+- 把一次插件缓存问题扩大成系统目录权限问题
+- 后续 Codex 更新仍可能覆盖或重新生成包目录，手改结果不可持续
+
+这个 skill 采用更稳妥的方式：只把 Codex bundled 插件源作为只读源，复制一份到用户目录 `.codex` 下，再让 Codex 使用这份用户可写的镜像。这样既避开 WindowsApps 的保护机制，也不会污染系统应用包目录。
+
 ## 验证
 
 运行：

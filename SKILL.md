@@ -69,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\restore
 ## Guardrails
 
 - Do not edit random `false`/`true` fields or invent a `computer-use = true` switch.
-- Do not write inside `C:\Program Files\WindowsApps`; use it only as the read-only source of the bundled plugin.
+- Do not write inside `C:\Program Files\WindowsApps`, change its permissions, take ownership, or modify ACLs; use it only as the read-only source of the bundled plugin.
 - If the script cannot find `plugins\openai-bundled\plugins\computer-use`, update/reinstall Codex before trying manual config edits.
 - If `@Computer` cannot operate apps after registration is fixed, investigate runtime, Windows foreground visibility, app approvals, or provider/session state separately.
 - If the Chrome extension itself is absent, do not fake Chrome profile state. Open the Codex Chrome Extension Web Store page only after the user agrees.
